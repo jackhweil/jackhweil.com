@@ -1,12 +1,12 @@
 branches:
   only:
   - master
-  language: python
-  python: 3.5
-  install: pip install awscli
-  script:
-  - aws s3 sync --exclude '.git/*' --exclude 'README.md' --exclude '.travis.yml' --exclude
-    '.gitignore' --acl public-read --delete . s3://www.jackhweil.com
+language: python
+python: 3.5
+install: pip install awscli
+script:
+- aws s3 sync --exclude '.git/*' --exclude 'README.md' --exclude '.travis.yml' --exclude
+'.gitignore' --acl public-read --delete . s3://www.jackhweil.com
 env:
   global:
   - secure: Aqck0olb2K91zlbT3Xd//9E9hTQxZhZvRHAXBS7igUn78/0RnyDRutcB8t/kSuiWKI8HLgOQZyd8IwhqL+o8B8dc8fVUYhe8z1AoIZrw4gL76Hs2oTzx6p60kVHWQ+YEzR8iLSBq/CwgPRs+v7UcdrENzkJtMHKw6nuFr9P9YsNtXNOB/h5UCn9KAvjGd7ZHjyVUS5Z6PCfSRoNxo0vUnv54ZXqgvdI+LfYrMr6vH0ZIXQySdkyGdckWNNDHbKx1xfj1FiiKyz4qzVHLuZU2uxj+KMSX0P1ULdOoPeUOxm2q5Xg5yJr25b7Y5TlJV4KsVUhrmMFNfUMHw0pI8mjlS3MmNY9LGptDX+0NZAhjFPTZbFcZEXrZlLlD+vEkkmIhGSUso/dt4P3fIEA2aOUp6lGcXtbLSQ8jQxUc7htm0ruVywnZhQ8Xn6MqTFIlJI3wOf7wX8F4bMkNQyBiYKiazZPYU3yPNb0Y1q4Z+V+zB1eYG5+y79SKFueac/l+B54Hnz4cZbssmmveNh6ouc6kno3F5p2v7aCwPATL/6zdAB8xvEW7WH9UbOtitoeWRZF57cP/TVWrCyaqG3akzvqGZuBgWvbR5xXNPqmePZHolSQVED5fyXiO6pE5L1I4J5o8odMa949t6dZ3Zf4qbtMFrHSFIOTN+vA1Em/f3k3yqkw=
