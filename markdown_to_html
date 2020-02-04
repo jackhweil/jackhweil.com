@@ -21,7 +21,27 @@ converted html files.
 EOF
 }
 
+main () {
+    check_for_dependencies
+    parse_opts "$@"
+    generate_html
+}
+
+check_for_dependencies () {
+    # check for pandoc
+    if ! command -v pandoc &>/dev/null; then
+        echo "pandoc required but not found, exiting..."
+        exit 1
+    fi
+}
+
 parse_opts () {
+    if [ $# -eq 0 ]; then
+        echo "No arguments provided, exiting..."
+        help_menu
+        exit 1
+    fi
+
     for arg in "$@"; do
         case "${arg}" in
             -h|--help)
@@ -49,33 +69,49 @@ parse_opts () {
     done
 }
 
-# check for pandoc
-if ! command -v pandoc &>/dev/null; then
-    echo "pandoc required but not found, exiting..."
-    exit 1
-fi
+generate_html () {
+    # get all the markdown files we need to convert
+    mapfile -t INPUT_FILES < <(find "${INPUT_DIR}" -name "*.md")
 
-# parse and verify arguments
-if [ $# -gt 0 ]; then
-    parse_opts "$@"
-else
-    echo "No arguments provided, exiting..."
-    help_menu
-    exit 1
-fi
+    # clear any stale outputs
+    find "${OUTPUT_DIR}" -name "*.html" -type f -delete
 
-# get all the markdown files we need to convert
-mapfile -t INPUT_FILES < <(find "${INPUT_DIR}" -name "*.md")
+    # process and convert each input file
+    for INPUT_FILE_PATH in "${INPUT_FILES[@]}"; do
+        INPUT_PATH=$(dirname "${INPUT_FILE_PATH}")
+        OUTPUT_PATH=${INPUT_PATH/$INPUT_DIR/$OUTPUT_DIR}
+        INPUT_FILE=$(basename -- "${INPUT_FILE_PATH}")
+        INPUT_NAME=${INPUT_FILE%.*}
+        OUTPUT_FILE_PATH="${OUTPUT_PATH}/${INPUT_NAME}.html"
+        mkdir -p "${OUTPUT_PATH}"
+        pre_process_target "${INPUT_FILE_PATH}"
+        convert_target "${OUTPUT_FILE_PATH}" "${INPUT_FILE_PATH}"
+        post_process_target "${OUTPUT_FILE_PATH}"
+    done
+}
 
-# clear any stale outputs
-#rm -rf "${OUTPUT_DIR}"
+convert_target () {
+    pandoc "${2}" \
+        --output="${1}" \
+        --from=markdown \
+        --to=html5 \
+        --css=css/main.css \
+        --highlight-style=haddock \
+        --standalone
+}
 
-# perform the conversion with pandoc
-for F in "${INPUT_FILES[@]}"; do
-    INPUT_PATH=$(dirname "${F}")
-    OUTPUT_PATH=${INPUT_PATH/$INPUT_DIR/$OUTPUT_DIR}
-    INPUT_FILE=$(basename -- "${F}")
-    INPUT_NAME=${INPUT_FILE%.*}
-    mkdir -p "${OUTPUT_PATH}"
-    pandoc -f markdown -t html5 -o "${OUTPUT_PATH}/${INPUT_NAME}.html" "${F}"
-done
+pre_process_target () {
+    # noop for now
+    true
+}
+
+post_process_target () {
+    update_links "${1}"
+}
+
+update_links () {
+    # replace md file extension with html in href tags
+    sed -i 's/href=\([^[:space:]]\+\)\.md">/href=\1\.html">/g' "${1}"
+}
+
+main "$@"
