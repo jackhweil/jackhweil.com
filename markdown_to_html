@@ -1,0 +1,81 @@
+#!/bin/bash
+
+PROG_NAME=$(basename "$0")
+
+help_menu () {
+cat << EOF
+Usage: ${PROG_NAME} -i=<input-dir> -o=<output-dir>
+
+Options:
+-h, --help    display this screen
+
+Params:
+<input-dir>   directory to recursively search for .md files from
+<output-dir>  directory to output html files in, mirroring <input-dir> structure
+
+Example:
+${PROG_NAME} -i=source -o=output
+
+Find all files with .md suffix in directory source (recursively) and create or overwrite output directory with
+converted html files.
+EOF
+}
+
+parse_opts () {
+    for arg in "$@"; do
+        case "${arg}" in
+            -h|--help)
+                help_menu
+                exit
+                ;;
+            -i=*|--input=*)
+                INPUT_DIR="${arg#*=}"
+                shift
+                if [ ! -d "${INPUT_DIR}" ]; then
+                    echo "Invalid input directory: ${INPUT_DIR}"
+                    exit 1
+                fi
+                ;;
+            -o=*|--output=*)
+                OUTPUT_DIR="${arg#*=}"
+                shift
+                ;;
+            *)
+                echo "Bad argument: ${arg}"
+                help_menu
+                exit 1
+                ;;
+        esac
+    done
+}
+
+# check for pandoc
+if ! command -v pandoc &>/dev/null; then
+    echo "pandoc required but not found, exiting..."
+    exit 1
+fi
+
+# parse and verify arguments
+if [ $# -gt 0 ]; then
+    parse_opts "$@"
+else
+    echo "No arguments provided, exiting..."
+    help_menu
+    exit 1
+fi
+
+# get all the markdown files we need to convert
+mapfile -t INPUT_FILES < <(find "${INPUT_DIR}" -name "*.md")
+
+# clear any stale outputs
+#rm -rf "${OUTPUT_DIR}"
+
+# perform the conversion with pandoc
+for F in "${INPUT_FILES[@]}"; do
+    INPUT_PATH=$(dirname "${F}")
+    OUTPUT_PATH=${INPUT_PATH/$INPUT_DIR/$OUTPUT_DIR}
+    INPUT_FILE=$(basename -- "${F}")
+    INPUT_NAME=${INPUT_FILE%.*}
+    mkdir -p "${OUTPUT_PATH}"
+    pandoc -f markdown -t html5 -o "${OUTPUT_PATH}/${INPUT_NAME}.html" "${F}"
+done
