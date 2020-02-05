@@ -4,7 +4,7 @@ PROG_NAME=$(basename "$0")
 
 help_menu () {
 cat << EOF
-Usage: ${PROG_NAME} -i=<input-dir> -o=<output-dir>
+Usage: ${PROG_NAME} -i=<input-dir> -o=<output-dir> -a=<asset-dir> -s=<style-dir>
 
 Options:
 -h, --help    display this screen
@@ -12,19 +12,21 @@ Options:
 Params:
 <input-dir>   directory to recursively search for .md files from
 <output-dir>  directory to output html files in, mirroring <input-dir> structure
+<asset-dir>   directory containing assets, will be copied into output site directory
+<style-dir>   directory containing css, will be copied into output site directory
 
 Example:
-${PROG_NAME} -i=source -o=output
+${PROG_NAME} -i=source -o=output -a=assets -s=css
 
 Find all files with .md suffix in directory source (recursively) and create or overwrite output directory with
-converted html files.
+converted html files. Also copy directories assets and css into output.
 EOF
 }
 
 main () {
     check_for_dependencies
     parse_opts "$@"
-    generate_html
+    build_site
 }
 
 check_for_dependencies () {
@@ -60,6 +62,22 @@ parse_opts () {
                 OUTPUT_DIR="${arg#*=}"
                 shift
                 ;;
+            -a=*|--assets=*)
+                ASSET_DIR="${arg#*=}"
+                shift
+                if [ ! -d "${ASSET_DIR}" ]; then
+                    echo "Invalid asset directory: ${ASSET_DIR}"
+                    exit 1
+                fi
+                ;;
+            -s=*|--style=*)
+                STYLE_DIR="${arg#*=}"
+                shift
+                if [ ! -d "${STYLE_DIR}" ]; then
+                    echo "Invalid asset directory: ${STYLE_DIR}"
+                    exit 1
+                fi
+                ;;
             *)
                 echo "Bad argument: ${arg}"
                 help_menu
@@ -69,12 +87,33 @@ parse_opts () {
     done
 }
 
-generate_html () {
-    # get all the markdown files we need to convert
-    mapfile -t INPUT_FILES < <(find "${INPUT_DIR}" -name "*.md")
+build_site () {
+    # get all the markdown files we need to convert, treating header and footer separately
+    mapfile -t INPUT_FILES < <(find "${INPUT_DIR}" \( -name "*.md" -and ! -name "header.md" -and ! -name "footer.md" \))
 
-    # clear any stale outputs
-    find "${OUTPUT_DIR}" -name "*.html" -type f -delete
+    # clear stale output
+    if [ -d "${OUTPUT_DIR}" ]; then
+        rm -rf "${OUTPUT_DIR}"
+    fi
+    mkdir -p "${OUTPUT_DIR}"
+
+    # copy in non-html
+    cp -r "${STYLE_DIR}" "${OUTPUT_DIR}/"
+    cp -r "${ASSET_DIR}" "${OUTPUT_DIR}/"
+
+    # process the special header and footer files
+    HEADER_FILE_PATH="${OUTPUT_DIR}/header.html"
+    FOOTER_FILE_PATH="${OUTPUT_DIR}/footer.html"
+    if [ -f "${INPUT_DIR}/header.md" ]; then
+        pandoc "${INPUT_DIR}/header.md" --output "${HEADER_FILE_PATH}" --to=html5
+    else
+        touch "${HEADER_FILE_PATH}"
+    fi
+    if [ -f "${INPUT_DIR}/footer.md" ]; then
+        pandoc "${INPUT_DIR}/footer.md" --output "${FOOTER_FILE_PATH}" --to=html5
+    else
+        touch "${FOOTER_FILE_PATH}"
+    fi
 
     # process and convert each input file
     for INPUT_FILE_PATH in "${INPUT_FILES[@]}"; do
@@ -85,7 +124,7 @@ generate_html () {
         OUTPUT_FILE_PATH="${OUTPUT_PATH}/${INPUT_NAME}.html"
         mkdir -p "${OUTPUT_PATH}"
         pre_process_target "${INPUT_FILE_PATH}"
-        convert_target "${OUTPUT_FILE_PATH}" "${INPUT_FILE_PATH}"
+        convert_target "${OUTPUT_FILE_PATH}" "${INPUT_FILE_PATH}" "${HEADER_FILE_PATH}" "${FOOTER_FILE_PATH}"
         post_process_target "${OUTPUT_FILE_PATH}"
     done
 }
@@ -95,7 +134,10 @@ convert_target () {
         --output="${1}" \
         --from=markdown \
         --to=html5 \
-        --css=css/main.css \
+        --css="/$(basename -- "${STYLE_DIR}")/main.css" \
+        --toc \
+        --include-before-body="${3}" \
+        --include-after-body="${4}" \
         --highlight-style=haddock \
         --standalone
 }
